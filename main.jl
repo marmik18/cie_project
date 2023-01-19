@@ -8,6 +8,8 @@
 using PrettyTables
 using Plots, Printf
 using DelimitedFiles
+using DataFrames
+using CSV
 
 ## booleans
 show_video = true
@@ -18,12 +20,12 @@ println("-- pendulum euler --")
 
 ## load pendulum
 include("Dynsys.jl")
-pendulum = Dynsys.Math_pendulum(10.0 / 300.0, 10.0, 1.0, 0.5, 0.0)
+pendulum = Dynsys.Math_pendulum(10.0 / 300.0, 10.0, 1.0, 5.0, 0.5, 0.0)
 
 ## load integrator and memory for the results
 delta_t = 1.0e-3
 timesteps = 2000
-type = "euler" # or "central_diff"
+type = "euler" # "euler" or "central_diff"
 
 Integ = Dynsys.Integrator(delta_t, timesteps)
 Integ.res_phi = zeros(Integ.timesteps)
@@ -40,7 +42,7 @@ for i in 1:Integ.timesteps
     # (homework)
     # plot the state
     fig = Dynsys.create_fig(pendulum)
-    Dynsys.run_step(Integ, type, pendulum)
+    Dynsys.run_step(Integ, type, pendulum, i)
     Dynsys.plot_state(pendulum)
     display(fig)
     frame(pendulum_animation)
@@ -59,7 +61,15 @@ savefig("output/$(type)_velocity.png")
 if show_video
     gif(pendulum_animation, "output/$(type)_pendulum.gif")
 end
+
+df = DataFrame(
+    timestep=LinRange(0, timesteps * delta_t, timesteps),
+    phi=Integ.res_phi,
+    phi_dot=Integ.res_phi_dot
+)
+
+CSV.write("output/$(type).csv", df)
 ######## Homework
 # Done: implement the euler integration step
 # implement the central difference integration step
-# plot coordinate phi and the time derivative phi_dot
+# Done: plot coordinate phi and the time derivative phi_dot

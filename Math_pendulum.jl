@@ -13,9 +13,10 @@ mutable struct Math_pendulum
     l::Float64
 	g::Float64
     m::Float64
+    c::Float64
 	phi::Float64
 	phi_dot::Float64
-    Math_pendulum(l, g, m, phi, phi_dot) = new(l, g, m, phi, phi_dot)
+    Math_pendulum(l, g, m, c, phi, phi_dot) = new(l, g, m, c, phi, phi_dot)
 end
 
 

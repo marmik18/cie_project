@@ -9,24 +9,14 @@ function splitdf(df, pct)
     return view(df, sel, :), view(df, .!sel, :)
 end
 
-function PhysicsLoss(phi, l, g, c, delta_t)
-
-    # Calculate loss as the mean squared error (MSE) between the predicted and target values
+function PhysicsLoss(phi_a, phi_b, phi, ϵ, l, g, c)
+    # Calculate physics loss
     loss = []
-    stepsize = 1
-    for i in 1+stepsize:50:length(phi)-stepsize
-        phi_dot = (phi[i+stepsize] - phi[i-stepsize]) / (2 * delta_t * stepsize)
-        phi_dotdot = (phi[i+stepsize] - 2 * phi[i] + phi[i-stepsize]) / (delta_t * stepsize)^2
+    for i in 1:(length(phi))
+        phi_dot = (phi_a[i] - phi_b[i]) / (2 * ϵ)
+        phi_dotdot = (phi_a[i] - 2 * phi[i] + phi_b[i]) / (ϵ)^2
         r = phi_dotdot + c * phi_dot + g / l * phi[i]
         loss = vcat(loss, [r])
     end
-    # for i in 1+stepsize:length(phi)-stepsize
-    #     phi_dot = (phi[i+stepsize] - phi[i-stepsize]) / (2 * delta_t * stepsize)
-    #     phi_dotdot = (phi[i+stepsize] - 2 * phi[i] + phi[i-stepsize]) / (delta_t * stepsize)^2
-    #     r = phi_dotdot + c * phi_dot + g / l * phi[i]
-    #     loss = vcat(loss, [r])
-    # end
-
-    return (5e-4) * mean(loss .^ 2)
+    return (1e-4) * mean(loss .^ 2)
 end
-

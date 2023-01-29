@@ -6,9 +6,9 @@ using Dates
 include("Utils.jl")
 
 type = "euler" # or "central_diff"
-epochs = 15000
+epochs = 20000
 max_learning_rate = 0.01
-
+ϵ=sqrt(eps(Float32))
 l = 10.0 / 300.0
 g = 10.0
 c = 5.0
@@ -22,7 +22,8 @@ train, test = splitdf(df, 0.35)
 timesteps = select(df, ["timestep"])
 interval = 50
 physics_train_data = transpose(Matrix(timesteps[1:interval:size(timesteps)[1], :]))
-
+a=physics_train_data.+ϵ
+b=physics_train_data.-ϵ
 # select all fields for data and target
 train_data = transpose(Matrix(select(train, ["timestep"])))
 train_target = transpose(Matrix(select(train, ["phi"])))
@@ -45,7 +46,7 @@ opt = Flux.Adam(max_learning_rate)
 losses = []
 prediction_per_epoch = []
 @showprogress for epoch in 1:epochs
-    y_hat_physics = missing
+    pred_at_epoch = missing
     for (x, y) in loader
         loss, grad = Flux.withgradient(pars) do
             # Evaluate model and loss inside gradient context:
@@ -53,9 +54,11 @@ prediction_per_epoch = []
             loss_mse = Flux.mse(y_hat, y)
 
             # compute the "physics loss"
-            y_hat_physics = model(hcat(train_data, test_data))
-
-            loss_residual = PhysicsLoss(y_hat_physics, l, g, c, delta_t)
+            y_hat_physics = model(physics_train_data)
+            phi_a = model(a)
+            phi_b = model(b)
+            pred_at_epoch=model(hcat(train_data,test_data))
+            loss_residual = PhysicsLoss(phi_a,phi_b,y_hat_physics,ϵ, l, g,c)
 
             total_loss = loss_mse + loss_residual
             return total_loss
@@ -63,7 +66,7 @@ prediction_per_epoch = []
         Flux.update!(opt, pars, grad)
         push!(losses, loss)  # logging, outside gradient context
     end
-    push!(prediction_per_epoch, y_hat_physics)
+    push!(prediction_per_epoch, pred_at_epoch)
 end
 
 
@@ -72,20 +75,25 @@ display(plot(losses; xaxis="iteration",
     yaxis="loss", label="per batch"))
 savefig("output/nn_loss_$(now()).svg")
 
-predictions_train = model(train_data)
-predictions = model(test_data)
+train_data_plot=collect(train_data[i] for i in 1:30:length(train_data))
+train_target_plot=collect(train_target[i] for i in 1:30:length(train_target))
+predictions = model(hcat(train_data,test_data))
 
-plot(df.timestep, df.phi, xaxis="timestep",
-    yaxis="phi", label="solved with $(type) equation")
-plot!(transpose(test_data), transpose(predictions), label="predictions")
-plot!(transpose(train_data), transpose(train_target), label="train")
-display(plot!(transpose(train_data), transpose(predictions_train), label="train predictions"))
+plot(df.timestep, df.phi, xaxis="timestep(seconds)",
+    yaxis="phi(radians)", label="solved with $(type) equation")
+plot!(transpose(hcat(train_data,test_data)), transpose(predictions), label="PINNs prediction")
+scatter!(train_data_plot,train_target_plot, label="training data")
+# display(plot!(transpose(train_data), transpose(predictions[1:length(train_data)]), label="train predictions"))
 
 savefig("output/nn_prediction_$(now()).svg")
 
-prediction_animation = @animate for epoch ∈ 1000:5000
-    plot(df.timestep, df.phi, label="solved with eq", title="Epoch: $(epoch)", ylim=(-0.4, 0.6))
-    plot!(transpose(hcat(train_data, test_data)), transpose(prediction_per_epoch[epoch]), label="predictions")
-    frame(prediction_animation)
+prediction_animation = @animate for epoch ∈ 20:20:10000
+    #plot(df.timestep, df.phi, label="solved with eq", title="Epoch: $(epoch)", ylim=(-0.4, 0.6))
+    #plot!(transpose(hcat(train_data, test_data)), transpose(prediction_per_epoch[epoch]), label="predictions")
+    plot(df.timestep, df.phi, xaxis="timestep(seconds)",
+    yaxis="phi(radians)", label="solved with $(type) equation",title="Epoch: $(epoch)",ylim=(-0.4, 0.6))
+    plot!(transpose(hcat(train_data,test_data)), transpose(prediction_per_epoch[epoch]), label="PINNs prediction")
+    scatter!(train_data_plot,train_target_plot, label="training data")
+    #frame(prediction_animation)
 end
-gif(prediction_animation, "output/nn_animation_60fps.gif", fps=60)
+gif(prediction_animation, "output/nn_animation_60fps.gif", fps=10)
